@@ -5,6 +5,14 @@ import time
 import math
 import numpy as np
 
+if len(sys.argv) == 4:
+	LOG = int(sys.argv[3])
+	DISPLAY = int(sys.argv[1])
+	POPULATION = int(sys.argv[2])
+else:
+	LOG = 1
+	DISPLAY = 1
+	POPULATION = 25
 
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
@@ -12,19 +20,22 @@ GREY = (100,100,100)
 GREEN = (0,255,0)
 WHITE = (255,255,255)
 
-
-
+SPEED = 1
+SCORE = 0
+STARVATION_RATE = 100
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
-SCORE = 0
 GEN = 0
 SNAKE_COLOR = GREEN
-TAIL_COLOR = GREEN
+TAIL_COLOR = GREY
+FOOD_COLOR = "Random"
+# FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
-DISPLAY = True
+FOOD = False
 
 pygame.init()
-gameDisplay = pygame.display.set_mode((SCREEN_SIZE,SCREEN_SIZE))
+if DISPLAY:
+	gameDisplay = pygame.display.set_mode((SCREEN_SIZE,SCREEN_SIZE))
 
 
 #######################MAKE SEPERATE FILE############################
@@ -37,10 +48,12 @@ class Snake:
 		self.y_speed = 0
 		self.tail_size = 0
 		self.tail = []
-		self.STARVATION_RATE = 25
 		self.Direction = "RIGHT"
+		self.SCORE = 0
+		self.hunger = 0
 
 	def update(self):
+		self.hunger += 1
 		self.tail.insert(0, (self.x, self.y))
 		if self.tail_size != len(self.tail):
 			self.tail.pop()
@@ -66,13 +79,35 @@ class Snake:
 			self.Direction =  "RIGHT"
 		if y == -1:
 			self.Direction =  "UP"
-		if y == -1:
+		if y == 1:
 			self.Direction =  "DOWN"
 
 	def eats(self, pos_x, pos_y):
 		if self.x == pos_x and self.y == pos_y:
 			self.tail_size += 1
 			return True
+
+	def move_decision(self, keystroke):
+		if self.Direction == "LEFT":
+			if keystroke == -1:
+				self.direction(0, -1)
+			if keystroke == 1:
+				self.direction(0, 1)
+		elif self.Direction == "RIGHT":
+			if keystroke == -1:
+				self.direction(0, 1)
+			if keystroke == 1:
+				self.direction(0, -1)
+		elif self.Direction == "UP":
+			if keystroke == -1:
+				self.direction(-1, 0)
+			if keystroke == 1:
+				self.direction(1, 0)
+		elif self.Direction == "DOWN":
+			if keystroke == -1:
+				self.direction(1, 0)
+			if keystroke == 1:
+				self.direction(-1, 0)
 
 	def check_collision(self):
         # Check if the head collides with the edges of the board
@@ -86,8 +121,8 @@ class Snake:
 				return True
 		return False
 
-	def starved(self, mark):
-		if (time.clock() - mark) > self.STARVATION_RATE:
+	def starved(self):
+		if self.hunger > STARVATION_RATE:
 			return True
 		return False		
 
@@ -101,6 +136,17 @@ class Snake:
 			if one_step == 0 or one_step == SCREEN_SIZE-BLOCK_SIZE or (one_step, self.y) in self.tail:
 				return 1
 		return 0
+
+	def terminate(self, LOG):
+		if (self.starved()):
+			if LOG == 2:
+				print("SNAKEBOT  |  SNAKE DIED: STARVATION. SCORE: " + str(self.SCORE))
+			return True
+		elif (self.check_collision()):
+			if LOG == 2:
+				print("SNAKEBOT  |  SNAKE DIED: COLLISION. SCORE: " + str(self.SCORE))
+			return True
+		return False
 
 	def check_obstacle_left(self):
 		if self.Direction == "RIGHT":
@@ -150,7 +196,10 @@ class Food:
 		self.y = (randint(0,((SCREEN_SIZE-BLOCK_SIZE)/BLOCK_SIZE))*BLOCK_SIZE)
 
 	def update(self):
-		self.COLOR = (randrange(254)|64, randrange(254)|64, randrange(254)|64)
+		if FOOD_COLOR == "Random":
+			self.COLOR = (randrange(254)|64, randrange(254)|64, randrange(254)|64)
+		else:
+			self.COLOR = FOOD_COLOR
 
 	def show(self):
 		pygame.draw.rect(gameDisplay, self.COLOR, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
@@ -190,16 +239,13 @@ class Neural_Network:
 #####################################################################
 
 
-def game_start():
+def game_start(SPEED):
     for i in range(3):
         pygame.display.set_caption("SNAKEBOT  |  Game starts in " + str(3-i) + " second(s) ...")
-        pygame.time.wait(250)
+        pygame.time.wait(round(250 / SPEED))
         
 def game_over(reason, SCORE):
-#	if (reason == "Collision"):
-	pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER: "+reason+". Press ENTER to restart or ESC to quit.")
-#	elif (reason == "Starvation"):
- #		pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER: SNAKE STARVED. Press ENTER to restart or ESC to quit.")
+	pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER. Press ESC to quit.")
 	pygame.time.wait(1000)
 	while True:
 		event = pygame.event.wait()
@@ -226,131 +272,82 @@ def menu():
 				return 1
 			elif event.key == pygame.K_m:
 				return 2
-
-
-def play_game(SCREEN_COLOR, SCORE):
-	snake = Snake()
-	food = Food()
-	clock = pygame.time.Clock()
-	gameDisplay.fill(SCREEN_COLOR)
-	game_start()
-	stats = pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE))
-
-	mark = time.clock()
-	while True:
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				sys.exit()			
-			elif event.type == pygame.KEYDOWN:
-				if event.key == pygame.K_ESCAPE:
-					sys.exit()
-				elif event.key == pygame.K_UP:
-					snake.direction(0,-1)
-				elif event.key == pygame.K_DOWN:
-					snake.direction(0,1)
-				elif event.key == pygame.K_LEFT:
-					snake.direction(-1,0)
-				elif event.key == pygame.K_RIGHT:
-					snake.direction(1,0)
-					
-		clock.tick(15)
-		gameDisplay.fill(SCREEN_COLOR)
-		snake.update()
-		snake.show()
-		if (snake.starved(mark)):
-			game_over("STARVATION", SCORE)
-		if (snake.check_collision()):
-			game_over("COLLISION", SCORE)
-		if snake.eats(food.x, food.y):
-			food = Food()
-			SCORE += 1
-			pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE))
-			mark = time.clock()
-		food.update()
-		food.show()
-		pygame.display.update()
-
-def machine_play(SCREEN_COLOR, SCORE, DISPLAY):
+		
+def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG):
+	global SPEED
+	Snakes = []
+	deadSnakes = []
+	Score = 0
+	for i in range(POPULATION):
+		Snakes.append(Snake())
 	Brain = Neural_Network()
-	snake = Snake()
 	food = Food()
+	FOOD = True
 	clock = pygame.time.Clock()
 	if DISPLAY:
 		gameDisplay.fill(SCREEN_COLOR)
-	game_start()
-	stats = pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE))
+	game_start(SPEED)
+	stats = pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN))
 
-	mark = time.clock()
-	while True:
+	while len(Snakes) != 0:
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				sys.exit()			
 			elif event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_ESCAPE:
 					sys.exit()
-
-		input1 = snake.check_obstacle()
-		input2 = snake.check_obstacle_left()
-		input3 = snake.check_obstacle_right()
-		print (input1, input2, input3)
-
-		value = Brain.think(input1, input2, input3)
-		keystroke = Brain.predict(value)
-		print (keystroke)
-		if snake.Direction == "LEFT":
-			if keystroke == -1:
-				snake.direction(0, -1)
-			if keystroke == 1:
-				snake.direction(0, 1)
-		if snake.Direction == "RIGHT":
-			if keystroke == -1:
-				snake.direction(0, 1)
-			if keystroke == 1:
-				snake.direction(0, -1)
-		if snake.Direction == "UP":
-			if keystroke == -1:
-				snake.direction(-1, 0)
-			if keystroke == 1:
-				snake.direction(1, 0)
-		if snake.Direction == "DOWN":
-			if keystroke == -1:
-				snake.direction(1, 0)
-			if keystroke == 1:
-				snake.direction(-1, 0)
-
+				elif event.key == pygame.K_RIGHT:
+					SPEED += 1
+				elif event.key == pygame.K_LEFT:
+					if SPEED != 1:
+						SPEED -= 1
 		if DISPLAY:
-			clock.tick(15)
+			clock.tick(15*SPEED)
 			gameDisplay.fill(SCREEN_COLOR)
-		snake.update()
-		if DISPLAY:
-			snake.show()
-		if (snake.starved(mark)):
-			reason == "STARVATION"
-			pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER: "+reason+". Press ENTER to restart or ESC to quit.")
-			pygame.time.wait(1000)
-			machine_play(SCREEN_COLOR, SCORE, True)
-		if (snake.check_collision()):
-			reason = "COLLISION"
-			pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER: "+reason+". Press ENTER to restart or ESC to quit.")
-			pygame.time.wait(1000)
-			machine_play(SCREEN_COLOR, SCORE, True)
-		if snake.eats(food.x, food.y):
+		pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
+		for snake in Snakes:
+			input1 = snake.check_obstacle()
+			input2 = snake.check_obstacle_left()
+			input3 = snake.check_obstacle_right()
+
+			value = Brain.think(input1, input2, input3)
+			keystroke = Brain.predict(value)
+
+			snake.move_decision(keystroke)
+
+			snake.update()
+			if DISPLAY:
+				snake.show()
+			if snake.terminate(LOG):
+				Snakes.remove(snake)
+				deadSnakes.append(snake)
+			if snake.eats(food.x, food.y):
+				FOOD = False
+				snake.SCORE += 1
+				Score = max(snake.SCORE for snake in Snakes)
+				snake.hunger=0
+		if FOOD == False:
 			food = Food()
-			SCORE += 1
-			pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE))
-			mark = time.clock()
+			FOOD = True
 		food.update()
 		if DISPLAY:
 			food.show()
 			pygame.display.update()
+	Score = max(snake.SCORE for snake in deadSnakes)
+	SCORE = max(Score, SCORE)
+	if LOG == 1 or LOG == 2:
+		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best: " + str(Score))
+	return SCORE
 
-
-
-choice = menu()
-if choice == 1:
-	play_game(SCREEN_COLOR, SCORE)
-elif choice == 2:
-	machine_play(SCREEN_COLOR, SCORE, DISPLAY)
+while True:
+	for event in pygame.event.get():
+		if event.type == pygame.QUIT:
+			sys.exit()			
+		elif event.type == pygame.KEYDOWN:
+			if event.key == pygame.K_ESCAPE:
+				sys.exit()
+	GEN += 1
+	SCORE = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG)
 
 
 
