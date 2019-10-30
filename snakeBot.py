@@ -23,6 +23,8 @@ WHITE = (255,255,255)
 SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
+if SCORE == 20:
+	STARVATION_RATE = 500
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -51,6 +53,27 @@ class Snake:
 		self.Direction = "RIGHT"
 		self.SCORE = 0
 		self.hunger = 0
+		self.Brain = Neural_Network()
+
+	def think(self):
+		inputs = [(self.check_obstacle_front()),
+				  (self.check_obstacle_left()),
+				  (self.check_obstacle_right())]
+		inVal = self.Brain.predict(inputs)
+		if inVal >= -1 and inVal <= -0.33:
+			output = -1
+		elif inVal <= 1 and inVal >= 0.33:
+			output = 1
+		else:
+			output = 0
+			output = (randint(-4,4))
+			if output == -4:
+				return -1
+			elif output == 4: 
+				return 1
+			else: 
+				return 0
+		return output
 
 	def update(self):
 		self.hunger += 1
@@ -151,40 +174,38 @@ class Snake:
 	def check_obstacle_left(self):
 		if self.Direction == "RIGHT":
 			one_step = self.y - BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (self.x, one_step) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "LEFT":
 			one_step = self.y + BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (self.x, one_step) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "UP":
 			one_step = self.y - BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (one_step, self.y) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "DOWN":
 			one_step = self.y + BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (one_step, self.y) in self.tail:
-				return 0
-		return 1
+			return one_step/SCREEN_SIZE
 
 	def check_obstacle_right(self):
 		if self.Direction == "RIGHT":
 			one_step = self.y + BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (self.x, one_step) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "LEFT":
 			one_step = self.y - BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (self.x, one_step) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "UP":
 			one_step = self.y + BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (one_step, self.y) in self.tail:
-				return 0
+			return one_step
 		elif self.Direction == "DOWN":
 			one_step = self.y - BLOCK_SIZE
-			if one_step == 0 or one_step == SCREEN_SIZE or (one_step, self.y) in self.tail:
-				return 0
-		return -1
+			return one_step/SCREEN_SIZE
+
+	def check_obstacle_front(self):
+		if self.x_speed == 0:
+			one_step = self.y + (self.y_speed * BLOCK_SIZE)
+			return one_step
+		elif self.y_speed == 0:
+			one_step = self.x + (self.x_speed * BLOCK_SIZE)
+			return one_step/SCREEN_SIZE
 
 
 
@@ -211,29 +232,14 @@ class Neural_Network:
 	def __init__(self):
 		self.score = 0
 
-	def think(self, input1, input2, input3):
-		input1 = input1 / 3
-		input2 = input2 / 3
-		input3 = input3 / 3
+	def predict(self, inputs):
+		input1 = inputs[0] / 3
+		input2 = inputs[1] / 3
+		input3 = inputs[2] / 3
 		return input1 + input2 + input3
 
 
-	def predict(self, inVal = None):
-		if inVal != None:
-			if inVal >= -1 and inVal <= -0.33:
-				output = -1
-			elif inVal <= 1 and inVal >= 0.33:
-				output = 1
-			else:
-				output = 0
-				output = (randint(-4,4))
-				if output == -4:
-					return -1
-				elif output == 4: 
-					return 1
-				else: 
-					return 0
-		return output
+
 
 
 #####################################################################
@@ -280,7 +286,6 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG):
 	Score = 0
 	for i in range(POPULATION):
 		Snakes.append(Snake())
-	Brain = Neural_Network()
 	food = Food()
 	FOOD = True
 	clock = pygame.time.Clock()
@@ -306,14 +311,9 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG):
 			gameDisplay.fill(SCREEN_COLOR)
 		pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
 		for snake in Snakes:
-			input1 = snake.check_obstacle()
-			input2 = snake.check_obstacle_left()
-			input3 = snake.check_obstacle_right()
 
-			value = Brain.think(input1, input2, input3)
-			keystroke = Brain.predict(value)
-
-			snake.move_decision(keystroke)
+			choice = snake.think()
+			snake.move_decision(choice)
 
 			snake.update()
 			if DISPLAY:
