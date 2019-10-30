@@ -22,7 +22,7 @@ WHITE = (255,255,255)
 
 SPEED = 1
 SCORE = 0
-STARVATION_RATE = 100
+STARVATION_RATE = 200
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -318,14 +318,14 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG):
 			snake.update()
 			if DISPLAY:
 				snake.show()
-			if snake.terminate(LOG):
-				Snakes.remove(snake)
-				deadSnakes.append(snake)
 			if snake.eats(food.x, food.y):
 				FOOD = False
 				snake.SCORE += 1
 				Score = max(snake.SCORE for snake in Snakes)
 				snake.hunger=0
+			if snake.terminate(LOG):
+				Snakes.remove(snake)
+				deadSnakes.append(snake)
 		if FOOD == False:
 			food = Food()
 			FOOD = True
