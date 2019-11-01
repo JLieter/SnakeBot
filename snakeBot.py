@@ -31,6 +31,7 @@ BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
 BEST_ONLY = False
+COLORED_FIT = False
 SNAKE_COLOR = GREEN
 TAIL_COLOR = GREY
 FOOD_COLOR = "Random"
@@ -80,7 +81,12 @@ class Snake:
 		for i in range(self.tail_size):
 			pygame.draw.rect(gameDisplay, TAIL_COLOR, [self.tail[i][0], self.tail[i][1], BLOCK_SIZE, BLOCK_SIZE])
 
-		pygame.draw.rect(gameDisplay, SNAKE_COLOR, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
+		if not COLORED_FIT:
+			pygame.draw.rect(gameDisplay, SNAKE_COLOR, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
+		else:
+			self.calcFitness()
+			snake_color = ((self.fitness // 255*self.SCORE if self.fitness // 255*self.SCORE < 255 else 255), 0, 255)
+			pygame.draw.rect(gameDisplay, snake_color, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
 
 	def direction(self, x, y):
 		if self.x_speed != -x:
@@ -366,6 +372,7 @@ def breed(Snakes):
 def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	global SPEED
 	global BEST_ONLY
+	global COLORED_FIT
 	deadSnakes = []
 	Score = 0
 	food = Food()
@@ -397,6 +404,11 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 						print("Showing All Snakes")
 						for snake in Snakes:
 							snake.DISPLAY = True
+				elif event.key == pygame.K_c:
+					if not COLORED_FIT:
+						COLORED_FIT = True
+					else:
+						COLORED_FIT = False
 
 		if BEST_ONLY:
 			best = max(snake.SCORE for snake in Snakes)
