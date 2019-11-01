@@ -1,6 +1,6 @@
 import pygame
 import sys
-from random import randint, randrange
+from random import randint, randrange, gauss
 import time
 import math
 import numpy as np
@@ -26,7 +26,7 @@ SCORE = 0
 STARVATION_RATE = 200
 if SCORE == 20:
 	STARVATION_RATE = 500
-MUTATION_RATE = 0.2
+MUTATION_RATE = 0.1
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -46,7 +46,7 @@ if DISPLAY:
 #######################MAKE SEPERATE FILE############################
 
 class Snake:
-	def __init__(self, Brain=None):
+	def __init__(self):
 		self.DISPLAY = True
 		self.x = SCREEN_SIZE/4
 		self.y = SCREEN_SIZE/8
@@ -56,24 +56,19 @@ class Snake:
 		self.tail = []
 		self.Direction = "RIGHT"
 		self.SCORE = 0
+		self.lifetime = 0
 		self.fitness = 0
 		self.hunger = 0
-		if Brain:
-			self.Brain = Brain
-		else:
-			self.Brain = Neural_Network(5, 8, 3)
+		self.Brain = Neural_Network(24, 32, 4)
 			
 	def think(self, food):
-		inputs = [(self.check_obstacle_front()),
-				  (self.check_obstacle_left()),
-				  (self.check_obstacle_right()),
-				   food.x, 
-				   food.y]
+		inputs = self.look(food)
 		pred = self.Brain.predict(inputs)
-		return pred - 1
+		return pred + 2
 
 	def update(self):
 		self.hunger += 1
+		self.lifetime += 1
 		self.tail.insert(0, (self.x, self.y))
 		if self.tail_size != len(self.tail):
 			self.tail.pop()
@@ -108,26 +103,15 @@ class Snake:
 			return True
 
 	def move_decision(self, keystroke):
-		if self.Direction == "LEFT":
-			if keystroke == -1:
-				self.direction(0, -1)
 			if keystroke == 1:
-				self.direction(0, 1)
-		elif self.Direction == "RIGHT":
-			if keystroke == -1:
-				self.direction(0, 1)
-			if keystroke == 1:
-				self.direction(0, -1)
-		elif self.Direction == "UP":
-			if keystroke == -1:
+					self.direction(1, 0)
+			elif keystroke == 2:
 				self.direction(-1, 0)
-			if keystroke == 1:
-				self.direction(1, 0)
-		elif self.Direction == "DOWN":
-			if keystroke == -1:
-				self.direction(1, 0)
-			if keystroke == 1:
-				self.direction(-1, 0)
+			elif keystroke == 3:
+				self.direction(0, 1)
+			elif keystroke == 4:
+				self.direction(0, -1)
+			
 
 	def check_collision(self):
         # Check if the head collides with the edges of the board
@@ -168,46 +152,51 @@ class Snake:
 			return True
 		return False
 
-	def check_obstacle_left(self):
-		if self.Direction == "RIGHT":
-			one_step = self.y - BLOCK_SIZE
-			return one_step
-		elif self.Direction == "LEFT":
-			one_step = self.y + BLOCK_SIZE
-			return one_step
-		elif self.Direction == "UP":
-			one_step = self.y - BLOCK_SIZE
-			return one_step
-		elif self.Direction == "DOWN":
-			one_step = self.y + BLOCK_SIZE
-			return one_step/SCREEN_SIZE
+	def look(self, food):
+		arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+		arr[0],arr[1],arr[2] = self.lookDir(0, 1, food)
+		arr[3],arr[4],arr[5] = self.lookDir(1, 1, food)
+		arr[6],arr[7],arr[8] = self.lookDir(1, 0, food)
+		arr[9],arr[10],arr[11] = self.lookDir(1, -1, food)
+		arr[12],arr[13],arr[14] = self.lookDir(0, -1, food)
+		arr[15],arr[16],arr[17] = self.lookDir(-1, -1, food)
+		arr[18],arr[19],arr[20] = self.lookDir(-1, 0, food)
+		arr[21],arr[22],arr[23] = self.lookDir(-1, 1, food)
+		return arr
 
-	def check_obstacle_right(self):
-		if self.Direction == "RIGHT":
-			one_step = self.y + BLOCK_SIZE
-			return one_step
-		elif self.Direction == "LEFT":
-			one_step = self.y - BLOCK_SIZE
-			return one_step
-		elif self.Direction == "UP":
-			one_step = self.y + BLOCK_SIZE
-			return one_step
-		elif self.Direction == "DOWN":
-			one_step = self.y - BLOCK_SIZE
-			return one_step/SCREEN_SIZE
 
-	def check_obstacle_front(self):
-		if self.x_speed == 0:
-			one_step = self.y + (self.y_speed * BLOCK_SIZE)
-			return one_step
-		elif self.y_speed == 0:
-			one_step = self.x + (self.x_speed * BLOCK_SIZE)
-			return one_step/SCREEN_SIZE
+	def lookDir(self, x, y, food):
+		stats = [0,0,0]
+		distance = 0
+		pos_x = self.x
+		pos_y = self.y
+		while (pos_x > 0 and pos_x < SCREEN_SIZE and pos_y > 0 and pos_y < SCREEN_SIZE):
+			distance+=1
+			pos_x += ((distance*x) * BLOCK_SIZE)
+			pos_y += ((distance*y) * BLOCK_SIZE)
+			if (food.x == pos_x and food.y == pos_y):
+				stats[0] = distance
+			if ((pos_x,pos_y) in self.tail):
+				stats[2] = distance
+		stats[1] = distance
+		return stats
+
+	def calcFitness(self):
+		if(self.SCORE < 10):
+			self.fitness = math.floor(self.lifetime * self.lifetime) * pow(2,self.SCORE);
+		else:
+			self.fitness = math.floor(self.lifetime * lifetime)
+			self.fitness *= pow(2,10)
+			self.fitness *= (score-9)
 
 	def mutate(self, x):
 		if (np.random.random() < MUTATION_RATE):
-			offset = np.random.uniform(-1,1)
+			offset = gauss(0,1) / 5
 			newx = x + offset
+			if newx > 1:
+				newx = 1
+			if newx < -1:
+				newx = -1
 			return newx
 		else:
 			return x
@@ -243,16 +232,28 @@ def sigmoid(x):
   return 1 / (1 + np.exp(-x))
 
 class Neural_Network:
-	def __init__(self, in_nodes, hid_nodes, out_nodes):
-		self.input_nodes = in_nodes
-		self.hidden_nodes = hid_nodes
-		self.output_nodes = out_nodes
+	def __init__(self, in_nodes, hid_nodes=None, out_nodes=None):
+		if isinstance(in_nodes, Neural_Network):
+			a = in_nodes
+			self.input_nodes = a.input_nodes
+			self.hidden_nodes = a.hidden_nodes
+			self.output_nodes = a.output_nodes
 
-		self.weight_ih = np.random.uniform(-1,1,(self.input_nodes, self.hidden_nodes))
-		self.weight_ho = np.random.uniform(-1,1,(self.hidden_nodes, self.output_nodes))
+			self.weight_ih = np.copy(a.weight_ih)
+			self.weight_ho = np.copy(a.weight_ho)
 
-		self.bias_h = np.random.uniform(-1,1)
-		self.bias_o = np.random.uniform(-1,1)
+			self.bias_h = a.bias_h
+			self.bias_o = a.bias_o		
+		else:
+			self.input_nodes = in_nodes
+			self.hidden_nodes = hid_nodes
+			self.output_nodes = out_nodes
+
+			self.weight_ih = np.random.uniform(-1,1,(self.input_nodes, self.hidden_nodes))
+			self.weight_ho = np.random.uniform(-1,1,(self.hidden_nodes, self.output_nodes))
+
+			self.bias_h = np.random.uniform(-1,1)
+			self.bias_o = np.random.uniform(-1,1)
 
 	def setLearningRate(self, learning_rate = 0.1):
 		self.learning_rate = learning_rate
@@ -277,12 +278,17 @@ class Neural_Network:
 		return result - 1
 		
 	def mutate(self, func):
-		vfunc = np.vectorize(func)
-		vfunc(self.weight_ih);
-		vfunc(self.weight_ho);
-		func(self.bias_h);
-		func(self.bias_o);
-		
+		for i in range(len(self.weight_ih)-1):
+			for j in range(len(self.weight_ih[i])):
+				self.weight_ih[i][j] = func(self.weight_ih[i][j])
+		for i in range(len(self.weight_ho)-1):
+			for j in range(len(self.weight_ho[i])):
+				self.weight_ho[i][j] = func(self.weight_ho[i][j])
+		self.bias_h = func(self.bias_h);
+		self.bias_h = func(self.bias_o);
+	
+	def copy(self):
+		return Neural_Network(self)
 
 
 #####################################################################
@@ -335,22 +341,24 @@ def chooseSnake(Snakes):
 	r = np.random.random()
 	while r>0:
 		r = r-Snakes[index].fitness
-		index+= 1
+		index+=1
 	index-=1
 
 	snake = Snakes[index]
-	newSnake = (Snake(snake.Brain))
-	# with tf.Session() as sess:  print(snake.Brain.weight_ih.eval()) 
-	# with tf.Session() as sess:  print(newSnake.Brain.weight_ih.eval()) 
-	# print()
-	return newSnake
+	return snake
 
 def breed(Snakes):
 	newSnakes = []
-	for _ in Snakes:
+	newPop = math.floor(POPULATION*0.8)
+	randoms = POPULATION - newPop
+	for _ in range(newPop):
 		snake = chooseSnake(Snakes)
-		snake.Brain.mutate(snake.mutate)
-		newSnakes.append(snake)
+		newSnake = Snake()
+		newSnake.Brain = snake.Brain.copy()
+		newSnake.Brain.mutate(newSnake.mutate)
+		newSnakes.append(newSnake)
+	for _ in range(randoms):
+		newSnakes.append(Snake())
 	return newSnakes
 
 
@@ -430,10 +438,12 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	if LOG == 1 or LOG == 2:
 		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best: " + str(Score))
 
-	Sum = sum(snake.SCORE for snake in deadSnakes)
-	if Sum != 0:
-		for snake in deadSnakes:
-			snake.fitness = snake.SCORE/Sum
+	for snake in deadSnakes:
+		snake.calcFitness()
+
+	Sum = sum(snake.fitness for snake in deadSnakes)
+	for snake in deadSnakes:
+		snake.fitness = snake.fitness/Sum
 
 	return SCORE, deadSnakes
 
@@ -449,8 +459,8 @@ while True:
 	GEN += 1
 	Snakes = populate(newSnakes, POPULATION)
 	SCORE, deadSnakes = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
-	if max(snake.SCORE for snake in deadSnakes) != 0:
-		newSnakes = breed(deadSnakes)
+	newSnakes = breed(deadSnakes)
+
 
 
 #	stats = pygame.display.set_caption("SNAKEBOT  |  Generation: " + str(GEN) + "  |  Score: " + str(SCORE))
