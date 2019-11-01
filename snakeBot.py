@@ -4,8 +4,6 @@ from random import randint, randrange
 import time
 import math
 import numpy as np
-import random
-import tensorflow as tf
 import math
 
 if len(sys.argv) == 4:
@@ -28,10 +26,11 @@ SCORE = 0
 STARVATION_RATE = 200
 if SCORE == 20:
 	STARVATION_RATE = 500
-MUTATION_RATE = 0.1
+MUTATION_RATE = 0.2
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
+BEST_ONLY = False
 SNAKE_COLOR = GREEN
 TAIL_COLOR = GREY
 FOOD_COLOR = "Random"
@@ -333,7 +332,7 @@ def populate(newSnakes, POPULATION):
 		
 def chooseSnake(Snakes):
 	index = 0
-	r = random.uniform(0, 1)
+	r = np.random.random()
 	while r>0:
 		r = r-Snakes[index].fitness
 		index+= 1
@@ -358,7 +357,7 @@ def breed(Snakes):
 
 def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	global SPEED
-	BEST_ONLY = False
+	global BEST_ONLY
 	deadSnakes = []
 	Score = 0
 	food = Food()
