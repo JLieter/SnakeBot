@@ -28,6 +28,7 @@ SCORE = 0
 STARVATION_RATE = 200
 if SCORE == 20:
 	STARVATION_RATE = 500
+MUTATION_RATE = 0.1
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -61,27 +62,16 @@ class Snake:
 		if Brain:
 			self.Brain = Brain
 		else:
-			self.Brain = Neural_Network(3, 4, 3)
-
-	def think(self):
+			self.Brain = Neural_Network(5, 8, 3)
+			
+	def think(self, food):
 		inputs = [(self.check_obstacle_front()),
 				  (self.check_obstacle_left()),
-				  (self.check_obstacle_right())]
-		inVal = self.Brain.predict(inputs)
-		if inVal >= -1 and inVal <= -0.33:
-			output = -1
-		elif inVal <= 1 and inVal >= 0.33:
-			output = 1
-		else:
-			output = 0
-			output = (randint(-4,4))
-			if output == -4:
-				return -1
-			elif output == 4: 
-				return 1
-			else: 
-				return 0
-		return output
+				  (self.check_obstacle_right()),
+				   food.x, 
+				   food.y]
+		pred = self.Brain.predict(inputs)
+		return pred - 1
 
 	def update(self):
 		self.hunger += 1
@@ -215,6 +205,13 @@ class Snake:
 			one_step = self.x + (self.x_speed * BLOCK_SIZE)
 			return one_step/SCREEN_SIZE
 
+	def mutate(self, x):
+		if (np.random.random() < MUTATION_RATE):
+			offset = np.random.uniform(-1,1)
+			newx = x + offset
+			return newx
+		else:
+			return x
 
 
 #####################################################################
@@ -240,8 +237,11 @@ class ActivationFunction:
 		self.func = func
 		self.dfunc = dfunc
 
-sigmoid = ActivationFunction((lambda x:  1 / (1 + math.exp(-x))), (lambda y:y*(1-y)))
-tanh = ActivationFunction((lambda x:(math.tanh(x))), (lambda y:1-(y*y)))
+# sigmoid = ActivationFunction((lambda x:  1 / (1 + math.exp(-x))), (lambda y:y*(1-y)))
+# tanh = ActivationFunction((lambda x:(math.tanh(x))), (lambda y:1-(y*y)))
+
+def sigmoid(x):
+  return 1 / (1 + np.exp(-x))
 
 class Neural_Network:
 	def __init__(self, in_nodes, hid_nodes, out_nodes):
@@ -249,14 +249,11 @@ class Neural_Network:
 		self.hidden_nodes = hid_nodes
 		self.output_nodes = out_nodes
 
-		self.weight_ih = tf.random.uniform((self.input_nodes, self.hidden_nodes), minval=-1, maxval= 1)
-		self.weight_ho = tf.random.uniform((self.hidden_nodes, self.output_nodes), minval=-1, maxval= 1)
+		self.weight_ih = np.random.uniform(-1,1,(self.input_nodes, self.hidden_nodes))
+		self.weight_ho = np.random.uniform(-1,1,(self.hidden_nodes, self.output_nodes))
 
-		self.bias_h = random.uniform(-1,1)
-		self.bias_o = random.uniform(-1,1)
-
-		self.setLearningRate()
-		self.setActivationFunction()
+		self.bias_h = np.random.uniform(-1,1)
+		self.bias_o = np.random.uniform(-1,1)
 
 	def setLearningRate(self, learning_rate = 0.1):
 		self.learning_rate = learning_rate
@@ -265,13 +262,28 @@ class Neural_Network:
 		self.activation_function = func
 
 	def predict(self, inputs):
-		input1 = inputs[0] / 3
-		input2 = inputs[1] / 3
-		input3 = inputs[2] / 3
-		return input1 + input2 + input3
+		inputs = np.array(inputs)
+		# with tf.Session() as sess:  print(inputs.eval()) 
+
+		hidden = np.matmul(np.reshape(inputs, (1, self.input_nodes)), self.weight_ih)
+		hidden += self.bias_h
+		hidden = sigmoid(hidden)
 
 
-
+		output = np.matmul(np.reshape(hidden, (1, self.hidden_nodes)), self.weight_ho)
+		output += self.bias_o
+		output = sigmoid(output)
+		
+		result = np.argmax(output)	
+		return result - 1
+		
+	def mutate(self, func):
+		vfunc = np.vectorize(func)
+		vfunc(self.weight_ih);
+		vfunc(self.weight_ho);
+		func(self.bias_h);
+		func(self.bias_o);
+		
 
 
 #####################################################################
@@ -329,13 +341,16 @@ def chooseSnake(Snakes):
 
 	snake = Snakes[index]
 	newSnake = (Snake(snake.Brain))
+	# with tf.Session() as sess:  print(snake.Brain.weight_ih.eval()) 
+	# with tf.Session() as sess:  print(newSnake.Brain.weight_ih.eval()) 
+	# print()
 	return newSnake
 
 def breed(Snakes):
 	newSnakes = []
 	for _ in Snakes:
 		snake = chooseSnake(Snakes)
-		# mutate(snake)
+		snake.Brain.mutate(snake.mutate)
 		newSnakes.append(snake)
 	return newSnakes
 
@@ -367,13 +382,14 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 					if SPEED != 1:
 						SPEED -= 1
 				elif event.key == pygame.K_b:
-					BEST_ONLY = True
-					print("Showing Best Snake Only")
-				elif event.key == pygame.K_a:
-					BEST_ONLY = False
-					print("Showing All Snakes")
-					for snake in Snakes:
-						snake.DISPLAY = True
+					if (not BEST_ONLY):
+						BEST_ONLY = True
+						print("Showing Best Snake Only")
+					else:
+						BEST_ONLY = False
+						print("Showing All Snakes")
+						for snake in Snakes:
+							snake.DISPLAY = True
 
 		if BEST_ONLY:
 			best = max(snake.SCORE for snake in Snakes)
@@ -387,11 +403,11 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 		pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
 		for snake in Snakes:
 
-			choice = snake.think()
+			choice = snake.think(food)
 			snake.move_decision(choice)
 
 			snake.update()
-			if snake.DISPLAY:
+			if snake.DISPLAY and DISPLAY:
 				snake.show()
 			if snake.eats(food.x, food.y):
 				FOOD = False
