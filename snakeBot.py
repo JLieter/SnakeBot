@@ -70,6 +70,7 @@ class Snake:
 	def update(self):
 		self.hunger += 1
 		self.lifetime += 1
+		self.calcFitness()
 		self.tail.insert(0, (self.x, self.y))
 		if self.tail_size != len(self.tail):
 			self.tail.pop()
@@ -84,7 +85,6 @@ class Snake:
 		if not COLORED_FIT:
 			pygame.draw.rect(gameDisplay, SNAKE_COLOR, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
 		else:
-			self.calcFitness()
 			snake_color = ((self.fitness // 255*self.SCORE if self.fitness // 255*self.SCORE < 255 else 255), 0, 255)
 			pygame.draw.rect(gameDisplay, snake_color, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
 
@@ -373,6 +373,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	global SPEED
 	global BEST_ONLY
 	global COLORED_FIT
+	global FOOD_COLOR
 	deadSnakes = []
 	Score = 0
 	food = Food()
@@ -407,8 +408,17 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 				elif event.key == pygame.K_c:
 					if not COLORED_FIT:
 						COLORED_FIT = True
+						print("Colored Fitness Mode")
 					else:
 						COLORED_FIT = False
+						print("Normal Coloring Mode")
+				elif event.key == pygame.K_f:
+					if FOOD_COLOR == RED:
+						FOOD_COLOR = "Random"
+						print("Colored Food")
+					else:
+						FOOD_COLOR = RED
+						print("Red Food")
 
 		if BEST_ONLY:
 			best = max(snake.SCORE for snake in Snakes)
@@ -449,9 +459,6 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	SCORE = max(Score, SCORE)
 	if LOG == 1 or LOG == 2:
 		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best: " + str(Score))
-
-	for snake in deadSnakes:
-		snake.calcFitness()
 
 	Sum = sum(snake.fitness for snake in deadSnakes)
 	for snake in deadSnakes:
