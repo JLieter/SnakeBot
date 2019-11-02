@@ -24,8 +24,7 @@ WHITE = (255,255,255)
 SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
-if SCORE == 20:
-	STARVATION_RATE = 500
+MAX_STARVATION_RATE = 500
 MUTATION_RATE = 0.01
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
@@ -59,16 +58,16 @@ class Snake:
 		self.SCORE = 0
 		self.lifetime = 0
 		self.fitness = 0
-		self.hunger = 0
+		self.hunger = STARVATION_RATE
 		self.Brain = Neural_Network(24, 32, 4)
 			
 	def think(self, food):
 		inputs = self.look(food)
 		pred = self.Brain.predict(inputs)
-		return pred + 2
+		return pred + 1
 
 	def update(self):
-		self.hunger += 1
+		self.hunger -= 1
 		self.lifetime += 1
 		self.calcFitness()
 		self.tail.insert(0, (self.x, self.y))
@@ -132,7 +131,7 @@ class Snake:
 		return False
 
 	def starved(self):
-		if self.hunger > STARVATION_RATE:
+		if self.hunger == 0:
 			return True
 		return False		
 
@@ -181,7 +180,7 @@ class Snake:
 			pos_x += ((distance*x) * BLOCK_SIZE)
 			pos_y += ((distance*y) * BLOCK_SIZE)
 			if (food.x == pos_x and food.y == pos_y):
-				stats[0] = distance
+				stats[0] = 1
 			if ((pos_x,pos_y) in self.tail):
 				stats[2] = distance
 		stats[1] = distance
@@ -281,7 +280,7 @@ class Neural_Network:
 		output = sigmoid(output)
 		
 		result = np.argmax(output)	
-		return result - 1
+		return result
 		
 	def mutate(self, func):
 		for i in range(len(self.weight_ih)-1):
@@ -355,7 +354,7 @@ def chooseSnake(Snakes):
 
 def breed(Snakes):
 	newSnakes = []
-	newPop = math.floor(POPULATION*0.8)
+	newPop = math.floor(POPULATION*0.95)
 	randoms = POPULATION - newPop
 	for _ in range(newPop):
 		snake = chooseSnake(Snakes)
@@ -442,7 +441,8 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 				FOOD = False
 				snake.SCORE += 1
 				Score = max(snake.SCORE for snake in Snakes)
-				snake.hunger=0
+				if snake.hunger < (MAX_STARVATION_RATE-100):
+					snake.hunger+=100
 			if snake.terminate(LOG):
 				Snakes.remove(snake)
 				deadSnakes.append(snake)
