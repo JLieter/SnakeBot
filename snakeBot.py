@@ -25,7 +25,7 @@ SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
-MUTATION_RATE = 0.01
+MUTATION_RATE = 0.1
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -196,15 +196,15 @@ class Snake:
 
 	def mutate(self, x):
 		if (np.random.random() < MUTATION_RATE):
-			offset = gauss(0,1) / 5
+			return np.random.uniform(-1,1)
+		else:
+			offset = gauss(0,1) / 50
 			newx = x + offset
 			if newx > 1:
 				newx = 1
 			if newx < -1:
 				newx = -1
 			return newx
-		else:
-			return x
 
 
 #####################################################################
@@ -259,9 +259,6 @@ class Neural_Network:
 
 			self.bias_h = np.random.uniform(-1,1)
 			self.bias_o = np.random.uniform(-1,1)
-
-	def setLearningRate(self, learning_rate = 0.1):
-		self.learning_rate = learning_rate
 
 	def setActivationFunction(self, func = sigmoid):
 		self.activation_function = func
@@ -430,7 +427,10 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 			gameDisplay.fill(SCREEN_COLOR)
 		pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
 		for snake in Snakes:
-
+			if snake.terminate(LOG):
+				Snakes.remove(snake)
+				deadSnakes.append(snake)
+				continue		
 			choice = snake.think(food)
 			snake.move_decision(choice)
 
@@ -443,9 +443,6 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 				Score = max(snake.SCORE for snake in Snakes)
 				if snake.hunger < (MAX_STARVATION_RATE-100):
 					snake.hunger+=100
-			if snake.terminate(LOG):
-				Snakes.remove(snake)
-				deadSnakes.append(snake)
 
 		if FOOD == False:
 			food = Food()
