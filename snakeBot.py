@@ -25,7 +25,9 @@ SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
-MUTATION_RATE = 0.1
+MUTATION_RATE = 0.2
+CONNECTION_MUTATION_RATE = 0.1
+NODE_MUTATION_RATE = 0.1
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -37,16 +39,23 @@ FOOD_COLOR = "Random"
 # FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
 FOOD = False
+CompatibilityDistanceThreshold = 3
+Species = []
+Genomes = []
+C1 = 1
+C2 = 1
+C3 = 0.4
+
 
 pygame.init()
 if DISPLAY:
 	gameDisplay = pygame.display.set_mode((SCREEN_SIZE,SCREEN_SIZE))
 
 
-#######################MAKE SEPERATE FILE############################
+####################### Snake Class ############################
 
 class Snake:
-	def __init__(self):
+	def __init__(self, Genome = None):
 		self.DISPLAY = True
 		self.x = SCREEN_SIZE/4
 		self.y = SCREEN_SIZE/8
@@ -207,7 +216,7 @@ class Snake:
 			return newx
 
 
-#####################################################################
+######################## Food Class ############################
 
 class Food:
 	def __init__(self):
@@ -223,18 +232,255 @@ class Food:
 	def show(self):
 		pygame.draw.rect(gameDisplay, self.COLOR, [self.x, self.y, BLOCK_SIZE, BLOCK_SIZE])
 
-#####################################################################
+####################### Brain Class ############################
 
 class ActivationFunction:
 	def __init__(self, func, dfunc):
 		self.func = func
 		self.dfunc = dfunc
 
-# sigmoid = ActivationFunction((lambda x:  1 / (1 + math.exp(-x))), (lambda y:y*(1-y)))
-# tanh = ActivationFunction((lambda x:(math.tanh(x))), (lambda y:1-(y*y)))
 
 def sigmoid(x):
   return 1 / (1 + np.exp(-x))
+
+
+def mutate(x):
+	if (np.random.random() < MUTATION_RATE):
+		return np.random.uniform(-1,1)
+	else:
+		offset = gauss(0,1) / 50
+		newx = x + offset
+		if newx > 1:
+			newx = 1
+		if newx < -1:
+			newx = -1
+		return newx
+
+
+class InnovationGenerator():
+	def __init__(self):
+		self.Innovation = 0
+
+	def getInnovation(self):
+		self.Innovation += 1
+		return self.Innovation
+
+
+connInnovation = InnovationGenerator()
+nodeInnovation = InnovationGenerator()
+
+
+
+class Genome:
+	def __init__(self, connInnovation = connInnovation, nodeInnovation = nodeInnovation):
+		self.connections = []
+		self.nodes = []
+		self.fitness = 0
+		self.adjustedFitness = 0
+		self.hidBias = np.random.uniform(-1,1)
+		self.outBias = np.random.uniform(-1,1)
+		
+
+	def addNode(self, TYPE):
+		self.nodes.append(NodeGene(nodeInnovation, TYPE))
+
+	def connectNodes(self):
+		inNodes = []
+		outNodes = []
+		for node in self.nodes:
+			if node.TYPE == "Input":
+				inNodes.append(node)
+			elif node.TYPE == "Output":
+				outNodes.append(node)
+
+	def predict(self, inputs):
+		for node in nodes:
+			if node.TYPE == "Input":
+				node.value = inputs[node.ID-1]
+				node.SET = True
+
+		#Figure out this Algo
+		while not Failed:
+			Failed = False
+			for connection in self.connections:
+				if connection.enabled:
+					inNode = next(node for node in self.nodes if node.ID == connection.inNode)
+					outNode = next(node for node in self.nodes if node.ID == connection.outNode)
+					if inNode.SET == True:
+						outNode.value += (inNode.value * connection.weight)
+						if outNode.TYPE == "Hidden":
+							outNode.value += self.hidBias
+						elif outNode.TYPE == "Output":
+							outNode.value += self.outBias
+						outNode.value = sigmoid(outNode.value)
+						outNode.SET = True
+					else:
+						Failed = True
+
+
+	def mutation(self, func = mutate):
+		for connection in self.connections:
+			connection.weight = func(connection.weight)
+		self.hidBias = func(self.hidBias)
+		self.outBias = func(self.outBias)
+
+
+	def addConnectionMutation(self):
+		weight = np.random.uniform(-1,1)
+		if len(nodes) > 2:
+			node1 = self.nodes[random.randint(len(self.nodes))]
+			node2 = self.nodes[random.randint(len(self.nodes))]
+			while (node1 == node2):
+				node2 = self.nodes[random.randint(len(self.nodes))]
+		
+		if (node1.TYPE == "Hidden" and node2.TYPE == "Input"):
+			temp = node1
+			node1 = node2
+			node2 = temp
+		elif (node1.TYPE == "Hidden" and node2.TYPE == "Output"):
+			temp = node1
+			node1 = node2
+			node2 = temp
+		elif (node1.TYPE == "Output" and node2.TYPE == "Input"):
+			temp = node1
+			node1 = node2
+			node2 = temp
+
+		for connection in self.connections:
+			if (connection.inNode == node1.ID and connection.outNode == node2.ID):
+				return
+
+		connections.append(ConnectionGene(node1.ID, node2.ID, weight, True, connInnovation.getInnovation()))
+
+	def addNodeMutation(self):
+		connection = self.connections[random.randint(len(self.connections))]
+		connection.enabled = False
+
+		node = NodeGene(nodeInnovation.getInnovation(), "Hidden")
+		nodes.append(node)
+		
+		connections.append(ConnectionGene(connection.inNode, node.ID, weight, True, connInnovation.getInnovation()))
+		connections.append(ConnectionGene(node.ID, outNode, weight, True, connInnovation.getInnovation()))
+
+	def crossover(self, parent1, parent2):
+		child = Genome()
+
+		for node in parent1.nodes:
+			child.nodes.append(node.copy())
+
+		for connection in parent1.connections:
+			if (connection.Innovation in parent2.connections.Innovation):
+				if bool(random.getrandbits(1)):
+					childConGene = connection.copy()
+				else:
+					for conn in parent2.connections:
+						if conn.Innovation == connection.Innovation:
+							childConGene = conn.copy()
+				child.connections.append(childConGene)
+			else:
+				childConGene = connection.copy()
+				child.connections.append(childConGene)	 
+
+		return child
+
+
+
+class ConnectionGene():
+	def __init__(self, inNode, outNode, weight, expressed, innovation):
+		self.inNode
+		self.outNode
+		self.weight
+		self.expressed
+		self.innovation
+
+	def copy(self):
+		return ConnectionGene(self.inNode, self.outNode, self.weight, self.expressed, self.innovation)
+
+
+
+
+class NodeGene():
+	def __init__(self, ID, TYPE):
+		self.ID
+		self.TYPE
+		self.value
+		self.SET = False
+
+	def copy(self):
+		return NodeGene(self.ID, self,TYPE)
+
+
+
+class Species():
+	def __init__(self, mascot):
+		self.mascot = mascot
+		self.members = []
+		self.memFitness = {}
+		self.adjustedFitness = 0
+		self.members.append(mascot)
+
+	def clearSpecies(self):
+		self.mascot = self.members[random.randint(len(self.members))]
+		self.members.clear()
+		self.memFitness.clear()
+		self.adjustedFitness = 0
+
+	def calcFitness(self):
+		for genome in self.members:
+			genome.adjustedFitness = genome.fitness / len(self.members)
+			self.adjustedFitness += genome.adjustedFitness
+
+
+
+def countGenes(genome1, genome2):
+	matchingGenes = 0
+	disjointGenes = 0
+	excessGenes = 0
+	weightDifference = 0
+
+	highestInnovation1 = max(node.ID for node in genome1.nodes)
+	highestInnovation2 = max(node.ID for node in genome2.nodes)
+	index = max(highestInnovation1, highestInnovation2)
+
+	for i in range(index):
+		if ( any(node for node in genome1.nodes if node.ID == i) and any(node for node in genome2.nodes if node.ID == i)):
+			matchingGenes += 1
+		elif ( any(node for node in genome1.nodes if node.ID == i) and highestInnovation1 > i and not any(node for node in genome2.nodes if node.ID == i)):
+			disjointGenes += 1
+		elif ( any(node for node in genome2.nodes if node.ID == i) and highestInnovation2 > i and not any(node for node in genome1.nodes if node.ID == i)):
+			disjointGenes += 1
+		elif ( any(node for node in genome1.nodes if node.ID == i) and highestInnovation1 < i and not any(node for node in genome2.nodes if node.ID == i)):
+			excessGenes += 1
+		elif ( any(node for node in genome2.nodes if node.ID == i) and highestInnovation2 < i and not any(node for node in genome1.nodes if node.ID == i)):
+			excessGenes += 1
+
+	highestInnovation1 = max(connection.Innovation for connection in genome1.connections)
+	highestInnovation2 = max(connection.Innovation for connection in genome2.connections)
+	index = max(highestInnovation1, highestInnovation2)
+
+	for i in range(index):
+		if ( any(connection for connection in genome1.connections if connection.Innovation == i) and any(connection for connection in genome2.connections if connection.Innovation == i)):
+			matchingGenes += 1
+			weightDifference += abs( next(connection.weight for connection in genome1.connections if connection.Innovation == i) - next(connection.weight for connection in genome2.connections if connection.Innovation == i))
+		elif ( any(connection for connection in genome1.connections if connection.Innovation == i) and highestInnovation1 > i and not any(connection for connection in genome2.connections if connection.Innovation == i)):
+			disjointGenes += 1
+		elif ( any(connection for connection in genome2.connections if connection.Innovation == i) and highestInnovation2 > i and not any(connection for connection in genome1.connections if connection.Innovation == i)):
+			disjointGenes += 1
+		elif ( any(connection for connection in genome1.connections if connection.Innovation == i) and highestInnovation1 < i and not any(connection for connection in genome2.connections if connection.Innovation == i)):
+			excessGenes += 1
+		elif ( any(connection for connection in genome2.connections if connection.Innovation == i) and highestInnovation2 < i and not any(connection for connection in genome1.connections if connection.Innovation == i)):
+			excessGenes += 1
+
+	averageWeightDifference = weightDifference / matchingGenes
+	return matchingGenes, disjointGenes, excessGenes, averageWeightDifference
+
+
+def CompatibilityDistance(genome1, genome2, c1, c2, c3):
+	matchingGenes, disjointGenes, excessGenes, averageWeightDiff = countGenes(genome1, genome2)
+	N = max( len(genome1.nodes), len(genome2.nodes) )
+
+	return ( ((excessGenes * c1)/N) + ((disjointGenes * c2)/N) + (averageWeightDifference * c3) )
+
 
 class Neural_Network:
 	def __init__(self, in_nodes, hid_nodes=None, out_nodes=None):
@@ -265,7 +511,6 @@ class Neural_Network:
 
 	def predict(self, inputs):
 		inputs = np.array(inputs)
-		# with tf.Session() as sess:  print(inputs.eval()) 
 
 		hidden = np.matmul(np.reshape(inputs, (1, self.input_nodes)), self.weight_ih)
 		hidden += self.bias_h
@@ -293,7 +538,7 @@ class Neural_Network:
 		return Neural_Network(self)
 
 
-#####################################################################
+####################### Game Code ##############################
 
 
 def game_start(SPEED):
@@ -301,6 +546,7 @@ def game_start(SPEED):
         pygame.display.set_caption("SNAKEBOT  |  Game starts in " + str(3-i) + " second(s) ...")
         pygame.time.wait(round(250 / SPEED))
         
+
 def game_over(reason, SCORE):
 	pygame.display.set_caption("SNAKEBOT  |  Score: " + str(SCORE) + "  |  GAME OVER. Press ESC to quit.")
 	pygame.time.wait(1000)
@@ -313,6 +559,7 @@ def game_over(reason, SCORE):
 				break
 	pygame.quit()
 	sys.exit()
+
 
 def menu():
 	font = pygame.font.Font(None, 30)
@@ -330,6 +577,7 @@ def menu():
 			elif event.key == pygame.K_m:
 				return 2
 
+
 def populate(newSnakes, POPULATION):
 	if len(newSnakes) == 0: 
 		Snakes = []
@@ -338,23 +586,65 @@ def populate(newSnakes, POPULATION):
 		return Snakes
 	return newSnakes
 		
-def chooseSnake(Snakes):
+
+def Selection(Genomes):
 	index = 0
 	r = np.random.random()
 	while r>0:
-		r = r-Snakes[index].fitness
+		r = r-Genomes[index].fitness
 		index+=1
 	index-=1
 
-	snake = Snakes[index]
-	return snake
+	genome = Genomes[index]
+	return genome
+
+
+def Speciate(Genomes = Genomes, Species = Species, POPULATION = POPULATION):
+	nextGenGenomes = []
+	for genome in Genomes:
+		foundSpecies = False
+		for species in Species:
+			if ( CompatibilityDistance(genome, species.mascot, C1, C2, C3) < CompatibilityDistanceThreshold ):
+				species.members.append(genome)
+				foundSpecies = True
+				break
+		if not foundSpecies:
+			Species.append(Species(genome))
+
+	for species in Species:
+		species.calcFitness()
+		topGenome = max(species.memFitness, key=species.memFitness.get)
+		nextGenGenomes.append(topGenome)
+
+	while len(nextGenGenomes) < POPULATION:
+		p1 = Selection(nextGenGenomes)
+		p2 = Selection(nextGenGenomes)
+		while (p1 == p2):
+			p2 = Selection(nextGenGenomes)
+		
+		if (p1.fitness >= p2.fitness):
+			child = Genome.crossover(p1, p2)
+		else:
+			child = Genome.crossover(p2, p1)
+
+		child.mutation()
+
+		if (np.random.random() < CONNECTION_MUTATION_RATE):
+			child.addConnectionMutation()
+
+		if (np.random.random() < NODE_MUTATION_RATE):
+			child.addNodeMutation()
+
+		nextGenGenomes.append(child)
+
+	return nextGenGenomes
 
 def breed(Snakes):
 	newSnakes = []
 	newPop = math.floor(POPULATION*0.95)
 	randoms = POPULATION - newPop
 	for _ in range(newPop):
-		snake = chooseSnake(Snakes)
+		snake = Selection(Snakes)
 		newSnake = Snake()
 		newSnake.Brain = snake.Brain.copy()
 		newSnake.Brain.mutate(newSnake.mutate)
@@ -362,7 +652,6 @@ def breed(Snakes):
 	for _ in range(randoms):
 		newSnakes.append(Snake())
 	return newSnakes
-
 
 
 def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
@@ -463,6 +752,9 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 
 	return SCORE, deadSnakes
 
+
+####################### Event Loop #############################
+
 newSnakes = []
 
 while True:
@@ -476,7 +768,3 @@ while True:
 	Snakes = populate(newSnakes, POPULATION)
 	SCORE, deadSnakes = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
 	newSnakes = breed(deadSnakes)
-
-
-
-#	stats = pygame.display.set_caption("SNAKEBOT  |  Generation: " + str(GEN) + "  |  Score: " + str(SCORE))
