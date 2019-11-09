@@ -1,6 +1,6 @@
 import pygame
 import sys
-from random import randint, randrange, gauss
+from random import randint, randrange, gauss, getrandbits
 import time
 import math
 import numpy as np
@@ -25,9 +25,10 @@ SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
-MUTATION_RATE = 0.2
-CONNECTION_MUTATION_RATE = 0.1
-NODE_MUTATION_RATE = 0.1
+MUTATION_RATE = 0.1
+WEIGHT_MUTATION_RATE = 0.8
+CONNECTION_MUTATION_RATE = 0.2
+NODE_MUTATION_RATE = 0.2
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -39,12 +40,14 @@ FOOD_COLOR = "Random"
 # FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
 FOOD = False
-CompatibilityDistanceThreshold = 3
-Species = []
-Genomes = []
+CompatibilityDistanceThreshold = 1
 C1 = 1
 C2 = 1
 C3 = 0.4
+
+connectionHistory = []
+SpeciesList = []
+Genomes = []
 
 
 pygame.init()
@@ -55,7 +58,7 @@ if DISPLAY:
 ####################### Snake Class ############################
 
 class Snake:
-	def __init__(self, Genome = None):
+	def __init__(self, Brain):
 		self.DISPLAY = True
 		self.x = SCREEN_SIZE/4
 		self.y = SCREEN_SIZE/8
@@ -68,11 +71,13 @@ class Snake:
 		self.lifetime = 0
 		self.fitness = 0
 		self.hunger = STARVATION_RATE
-		self.Brain = Neural_Network(24, 32, 4)
+		self.Brain = Brain
+		self.Brain.generateNetwork()
 			
 	def think(self, food):
 		inputs = self.look(food)
-		pred = self.Brain.predict(inputs)
+		result = self.Brain.feedForward(inputs)
+		pred = result.index(max(result))
 		return pred + 1
 
 	def update(self):
@@ -203,18 +208,6 @@ class Snake:
 			self.fitness *= pow(2,10)
 			self.fitness *= (score-9)
 
-	def mutate(self, x):
-		if (np.random.random() < MUTATION_RATE):
-			return np.random.uniform(-1,1)
-		else:
-			offset = gauss(0,1) / 50
-			newx = x + offset
-			if newx > 1:
-				newx = 1
-			if newx < -1:
-				newx = -1
-			return newx
-
 
 ######################## Food Class ############################
 
@@ -257,120 +250,127 @@ def mutate(x):
 		return newx
 
 
-class InnovationGenerator():
-	def __init__(self):
-		self.Innovation = 0
-
-	def getInnovation(self):
-		self.Innovation += 1
-		return self.Innovation
-
-
-connInnovation = InnovationGenerator()
-nodeInnovation = InnovationGenerator()
-
-
-
 class Genome:
-	def __init__(self, connInnovation = connInnovation, nodeInnovation = nodeInnovation):
+	def __init__(self, inputs, outputs):
 		self.connections = []
 		self.nodes = []
+		self.network = []
 		self.fitness = 0
 		self.adjustedFitness = 0
-		self.hidBias = np.random.uniform(-1,1)
-		self.outBias = np.random.uniform(-1,1)
-		
+		self.inputs = inputs
+		self.outputs = outputs
+		self.nextNode = 0
+		self.biasNode = 0
 
-	def addNode(self, TYPE):
-		self.nodes.append(NodeGene(nodeInnovation, TYPE))
+		for i in range(inputs):
+			self.addNode(self.nextNode, "Input")
+
+		for i in range(outputs):
+			self.addNode(self.nextNode, "Output")
+		
+		self.biasNode = self.nextNode
+		self.addNode(self.nextNode, "Input")
+
+
+	def addNode(self, ID, TYPE):
+		self.nodes.append(NodeGene(ID, TYPE))
+		self.nextNode += 1
+
 
 	def connectNodes(self):
-		inNodes = []
-		outNodes = []
 		for node in self.nodes:
-			if node.TYPE == "Input":
-				inNodes.append(node)
-			elif node.TYPE == "Output":
-				outNodes.append(node)
+			node.outputConnections = []
 
-	def predict(self, inputs):
-		for node in nodes:
-			if node.TYPE == "Input":
-				node.value = inputs[node.ID-1]
-				node.SET = True
-
-		#Figure out this Algo
-		while not Failed:
-			Failed = False
-			for connection in self.connections:
-				if connection.enabled:
-					inNode = next(node for node in self.nodes if node.ID == connection.inNode)
-					outNode = next(node for node in self.nodes if node.ID == connection.outNode)
-					if inNode.SET == True:
-						outNode.value += (inNode.value * connection.weight)
-						if outNode.TYPE == "Hidden":
-							outNode.value += self.hidBias
-						elif outNode.TYPE == "Output":
-							outNode.value += self.outBias
-						outNode.value = sigmoid(outNode.value)
-						outNode.SET = True
-					else:
-						Failed = True
-
-
-	def mutation(self, func = mutate):
 		for connection in self.connections:
-			connection.weight = func(connection.weight)
-		self.hidBias = func(self.hidBias)
-		self.outBias = func(self.outBias)
+			connection.inNode.outputConnections.append(connection)
+
+
+	def generateNetwork(self):
+		self.connectNodes()
+		for layer in ["Input", "Hidden", "Output"]:
+			for node in self.nodes:
+				if node.TYPE == layer:
+					self.network.append(node)
+
+
+	def feedForward(self, inputs):
+		for i in range(len(inputs)):
+			self.nodes[i].outputValue = inputs[i]
+
+		self.nodes[self.biasNode].outputValue = 1
+
+		for node in self.network:
+			node.engage()
+
+		outputs = []
+		for node in self.nodes:
+			if node.TYPE == "Output":
+				outputs.append(node.outputValue)
+
+		for node in self.nodes:
+			node.inputSum = 0
+
+		return outputs
+
+	def mutation(self):
+		for connection in self.connections:
+			connection.weight = mutate(connection.weight)
 
 
 	def addConnectionMutation(self):
-		weight = np.random.uniform(-1,1)
-		if len(nodes) > 2:
-			node1 = self.nodes[random.randint(len(self.nodes))]
-			node2 = self.nodes[random.randint(len(self.nodes))]
-			while (node1 == node2):
-				node2 = self.nodes[random.randint(len(self.nodes))]
+		#If there are at least 2 nodes select 2 random unique nodes
+		if len(self.nodes) > 2:
+			node1 = self.nodes[randint(0, len(self.nodes)-1)]
+			node2 = self.nodes[randint(0, len(self.nodes)-1)]
+			while (node1 == node2 or node1.TYPE == node2.TYPE):
+				node2 = self.nodes[randint(0, len(self.nodes)-1)]
 		
+		#Flip Node1 and Node2 if they are back propagating
 		if (node1.TYPE == "Hidden" and node2.TYPE == "Input"):
-			temp = node1
-			node1 = node2
-			node2 = temp
+			node1, node2 = node2, node1
 		elif (node1.TYPE == "Hidden" and node2.TYPE == "Output"):
-			temp = node1
-			node1 = node2
-			node2 = temp
+			node1, node2 = node2, node1
 		elif (node1.TYPE == "Output" and node2.TYPE == "Input"):
-			temp = node1
-			node1 = node2
-			node2 = temp
+			node1, node2 = node2, node1
 
+		#Check if Connection Exists
 		for connection in self.connections:
-			if (connection.inNode == node1.ID and connection.outNode == node2.ID):
+			if (connection.inNode == node1 and connection.outNode == node2):
 				return
 
-		connections.append(ConnectionGene(node1.ID, node2.ID, weight, True, connInnovation.getInnovation()))
+		#Add Connection
+		weight = np.random.uniform(-1,1)
+		self.connections.append(ConnectionGene(node1, node2, weight))
+
 
 	def addNodeMutation(self):
-		connection = self.connections[random.randint(len(self.connections))]
-		connection.enabled = False
+		connection = self.connections[randint(0, len(self.connections)-1)]
+		connection.expressed = False
 
-		node = NodeGene(nodeInnovation.getInnovation(), "Hidden")
-		nodes.append(node)
+		self.addNode(self.nextNode, "Hidden")
+		node = self.nodes[self.nextNode-1]
 		
-		connections.append(ConnectionGene(connection.inNode, node.ID, weight, True, connInnovation.getInnovation()))
-		connections.append(ConnectionGene(node.ID, outNode, weight, True, connInnovation.getInnovation()))
 
-	def crossover(self, parent1, parent2):
-		child = Genome()
+		weight = np.random.uniform(-1,1)
+		self.connections.append(ConnectionGene(connection.inNode, node, weight))
+		self.connections.append(ConnectionGene(node, connection.outNode, connection.weight))
 
-		for node in parent1.nodes:
+
+	def crossover(self, parent2):
+		child = Genome(self.inputs, self.outputs)
+		child.nodes = []
+		child.connections = []
+		child.fitness = 0
+		child.adjustedFitness = 0
+		child.nextNode = self.nextNode
+		child.biasNode = self.biasNode
+
+		for node in self.nodes:
 			child.nodes.append(node.copy())
 
-		for connection in parent1.connections:
-			if (connection.Innovation in parent2.connections.Innovation):
-				if bool(random.getrandbits(1)):
+		for connection in self.connections:
+			if (any(conn for conn in parent2.connections if connection.Innovation == conn.Innovation)):
+				if bool(getrandbits(1)):
 					childConGene = connection.copy()
 				else:
 					for conn in parent2.connections:
@@ -385,29 +385,49 @@ class Genome:
 
 
 
-class ConnectionGene():
-	def __init__(self, inNode, outNode, weight, expressed, innovation):
-		self.inNode
-		self.outNode
-		self.weight
-		self.expressed
-		self.innovation
+class ConnectionGene:
+	def __init__(self, inNode, outNode, weight):
+		self.inNode = inNode
+		self.outNode = outNode
+		self.weight = weight
+		self.expressed = True
+		self.Innovation = 0
+		self.getInnovation()
+
 
 	def copy(self):
-		return ConnectionGene(self.inNode, self.outNode, self.weight, self.expressed, self.innovation)
+		connection = ConnectionGene(self.inNode, self.outNode, self.weight)
+		connection.expressed = self.expressed
+		return connection
+
+	def getInnovation(self, connectionHistory = connectionHistory):
+		for connection in connectionHistory:
+			if connection.inNode.ID == self.inNode.ID:
+				if connection.outNode.ID == self.outNode.ID:
+					self.Innovation = connection.Innovation
+					return
+		self.Innovation = len(connectionHistory)
+		connectionHistory.append(self)
+					
 
 
-
-
-class NodeGene():
+class NodeGene:
 	def __init__(self, ID, TYPE):
-		self.ID
-		self.TYPE
-		self.value
+		self.ID = ID
+		self.TYPE = TYPE
+		self.inputSum = 0 
+		self.outputValue = 0
 		self.SET = False
+		self.outputConnections = []
+
+	def engage(self):
+		self.outputValue = sigmoid(self.inputSum)
+		for connection in self.outputConnections:
+			if connection.expressed:
+				connection.outNode.inputSum += (self.outputValue * connection.weight)
 
 	def copy(self):
-		return NodeGene(self.ID, self,TYPE)
+		return NodeGene(self.ID, self.TYPE)
 
 
 
@@ -428,8 +448,8 @@ class Species():
 	def calcFitness(self):
 		for genome in self.members:
 			genome.adjustedFitness = genome.fitness / len(self.members)
+			self.memFitness[genome] = genome.adjustedFitness
 			self.adjustedFitness += genome.adjustedFitness
-
 
 
 def countGenes(genome1, genome2):
@@ -437,105 +457,62 @@ def countGenes(genome1, genome2):
 	disjointGenes = 0
 	excessGenes = 0
 	weightDifference = 0
-
-	highestInnovation1 = max(node.ID for node in genome1.nodes)
-	highestInnovation2 = max(node.ID for node in genome2.nodes)
-	index = max(highestInnovation1, highestInnovation2)
-
-	for i in range(index):
-		if ( any(node for node in genome1.nodes if node.ID == i) and any(node for node in genome2.nodes if node.ID == i)):
-			matchingGenes += 1
-		elif ( any(node for node in genome1.nodes if node.ID == i) and highestInnovation1 > i and not any(node for node in genome2.nodes if node.ID == i)):
-			disjointGenes += 1
-		elif ( any(node for node in genome2.nodes if node.ID == i) and highestInnovation2 > i and not any(node for node in genome1.nodes if node.ID == i)):
-			disjointGenes += 1
-		elif ( any(node for node in genome1.nodes if node.ID == i) and highestInnovation1 < i and not any(node for node in genome2.nodes if node.ID == i)):
-			excessGenes += 1
-		elif ( any(node for node in genome2.nodes if node.ID == i) and highestInnovation2 < i and not any(node for node in genome1.nodes if node.ID == i)):
-			excessGenes += 1
+	averageWeightDifference = 0
 
 	highestInnovation1 = max(connection.Innovation for connection in genome1.connections)
 	highestInnovation2 = max(connection.Innovation for connection in genome2.connections)
 	index = max(highestInnovation1, highestInnovation2)
 
-	for i in range(index):
-		if ( any(connection for connection in genome1.connections if connection.Innovation == i) and any(connection for connection in genome2.connections if connection.Innovation == i)):
+	for i in range(index+1):
+		#If they are matching genes
+		if ( (sum(connection.Innovation == i for connection in genome1.connections) != 0) and (sum(connection.Innovation == i for connection in genome2.connections) != 0)):
 			matchingGenes += 1
 			weightDifference += abs( next(connection.weight for connection in genome1.connections if connection.Innovation == i) - next(connection.weight for connection in genome2.connections if connection.Innovation == i))
-		elif ( any(connection for connection in genome1.connections if connection.Innovation == i) and highestInnovation1 > i and not any(connection for connection in genome2.connections if connection.Innovation == i)):
-			disjointGenes += 1
-		elif ( any(connection for connection in genome2.connections if connection.Innovation == i) and highestInnovation2 > i and not any(connection for connection in genome1.connections if connection.Innovation == i)):
-			disjointGenes += 1
-		elif ( any(connection for connection in genome1.connections if connection.Innovation == i) and highestInnovation1 < i and not any(connection for connection in genome2.connections if connection.Innovation == i)):
-			excessGenes += 1
-		elif ( any(connection for connection in genome2.connections if connection.Innovation == i) and highestInnovation2 < i and not any(connection for connection in genome1.connections if connection.Innovation == i)):
-			excessGenes += 1
+		#If genome1 contains this gene, but genome2 does not
+		elif ( (sum(connection.Innovation == i for connection in genome1.connections) != 0) and (sum(connection.Innovation == i for connection in genome2.connections) == 0)):
+			if highestInnovation2 > i:
+				disjointGenes += 1
+			elif highestInnovation2 < i:
+				excessGenes += 1
+		#If genome2 contains this gene, but genome1 does not
+		elif ( (sum(connection.Innovation == i for connection in genome1.connections) == 0) and (sum(connection.Innovation == i for connection in genome2.connections) != 0)):
+			if highestInnovation1 > i:
+				disjointGenes += 1
+			elif highestInnovation1 < i:
+				excessGenes += 1			
 
-	averageWeightDifference = weightDifference / matchingGenes
+	if matchingGenes > 0:
+		averageWeightDifference = weightDifference / matchingGenes
 	return matchingGenes, disjointGenes, excessGenes, averageWeightDifference
 
 
 def CompatibilityDistance(genome1, genome2, c1, c2, c3):
-	matchingGenes, disjointGenes, excessGenes, averageWeightDiff = countGenes(genome1, genome2)
+	matchingGenes, disjointGenes, excessGenes, averageWeightDifference = countGenes(genome1, genome2)
 	N = max( len(genome1.nodes), len(genome2.nodes) )
+	N -= 20
+	if N < 1:
+		N = 1
 
 	return ( ((excessGenes * c1)/N) + ((disjointGenes * c2)/N) + (averageWeightDifference * c3) )
 
 
-class Neural_Network:
-	def __init__(self, in_nodes, hid_nodes=None, out_nodes=None):
-		if isinstance(in_nodes, Neural_Network):
-			a = in_nodes
-			self.input_nodes = a.input_nodes
-			self.hidden_nodes = a.hidden_nodes
-			self.output_nodes = a.output_nodes
+class Population:
+	def __init__(self, POPULATION = POPULATION):
+		global Genomes
+		self.POPULATION = POPULATION
+		self.members = []
+		self.initialGenomes()
 
-			self.weight_ih = np.copy(a.weight_ih)
-			self.weight_ho = np.copy(a.weight_ho)
+	def initialGenomes(self):
+		for i in range(self.POPULATION):
+			genome = Genome(24,4)
+			genome.addConnectionMutation()
+			Genomes.append(genome)
 
-			self.bias_h = a.bias_h
-			self.bias_o = a.bias_o		
-		else:
-			self.input_nodes = in_nodes
-			self.hidden_nodes = hid_nodes
-			self.output_nodes = out_nodes
-
-			self.weight_ih = np.random.uniform(-1,1,(self.input_nodes, self.hidden_nodes))
-			self.weight_ho = np.random.uniform(-1,1,(self.hidden_nodes, self.output_nodes))
-
-			self.bias_h = np.random.uniform(-1,1)
-			self.bias_o = np.random.uniform(-1,1)
-
-	def setActivationFunction(self, func = sigmoid):
-		self.activation_function = func
-
-	def predict(self, inputs):
-		inputs = np.array(inputs)
-
-		hidden = np.matmul(np.reshape(inputs, (1, self.input_nodes)), self.weight_ih)
-		hidden += self.bias_h
-		hidden = sigmoid(hidden)
-
-
-		output = np.matmul(np.reshape(hidden, (1, self.hidden_nodes)), self.weight_ho)
-		output += self.bias_o
-		output = sigmoid(output)
-		
-		result = np.argmax(output)	
-		return result
-		
-	def mutate(self, func):
-		for i in range(len(self.weight_ih)-1):
-			for j in range(len(self.weight_ih[i])):
-				self.weight_ih[i][j] = func(self.weight_ih[i][j])
-		for i in range(len(self.weight_ho)-1):
-			for j in range(len(self.weight_ho[i])):
-				self.weight_ho[i][j] = func(self.weight_ho[i][j])
-		self.bias_h = func(self.bias_h);
-		self.bias_h = func(self.bias_o);
-	
-	def copy(self):
-		return Neural_Network(self)
+	def populate(self, Genomes):
+		for Genome in Genomes:
+			self.members.append(Snake(Genome))
+		return self.members
 
 
 ####################### Game Code ##############################
@@ -578,56 +555,61 @@ def menu():
 				return 2
 
 
-def populate(newSnakes, POPULATION):
-	if len(newSnakes) == 0: 
-		Snakes = []
-		for i in range(POPULATION):
-			Snakes.append(Snake())
-		return Snakes
-	return newSnakes
-		
-
 def Selection(Genomes):
-	index = 0
-	r = np.random.random()
-	while r>0:
-		r = r-Genomes[index].fitness
-		index+=1
-	index-=1
+	#Method for randomly selecting a candidate in a list with increasing percentage based on its fitness
+	Sum = sum(genome.fitness for genome in Genomes)
+	r = np.random.uniform(0,Sum)
+	runningSum = 0
 
-	genome = Genomes[index]
-	return genome
+	for index in range(len(Genomes)):
+		runningSum += Genomes[index].fitness
+		if runningSum > r:
+			return Genomes[index]
+
+	return Genomes[0]
 
 
-def Speciate(Genomes = Genomes, Species = Species, POPULATION = POPULATION):
+def Speciate(Genomes, SpeciesList = SpeciesList, POPULATION = POPULATION):
 	nextGenGenomes = []
+
+	#Select New Species mascot for each species
+	for species in SpeciesList:
+		species.mascot =  species.members[randint(0, len(species.members)-1)]
+		species.members = []
+		species.members.append(species.mascot)
+		species.memFitness.clear()
+
+	#Categorize each Genome into a species
 	for genome in Genomes:
 		foundSpecies = False
-		for species in Species:
+		for species in SpeciesList:
 			if ( CompatibilityDistance(genome, species.mascot, C1, C2, C3) < CompatibilityDistanceThreshold ):
 				species.members.append(genome)
 				foundSpecies = True
 				break
 		if not foundSpecies:
-			Species.append(Species(genome))
+			SpeciesList.append(Species(genome))
 
-	for species in Species:
+	#Calculate the fitness of each Species and find best genome per species
+	for species in SpeciesList:
 		species.calcFitness()
 		topGenome = max(species.memFitness, key=species.memFitness.get)
 		nextGenGenomes.append(topGenome)
 
+	#Establish Base population size again with Crossovers
 	while len(nextGenGenomes) < POPULATION:
-		p1 = Selection(nextGenGenomes)
-		p2 = Selection(nextGenGenomes)
+		p1 = Selection(Genomes)
+		p2 = Selection(Genomes)
 		while (p1 == p2):
-			p2 = Selection(nextGenGenomes)
+			p2 = Selection(Genomes)
 		
 		if (p1.fitness >= p2.fitness):
-			child = Genome.crossover(p1, p2)
+			child = p1.crossover(p2)
 		else:
-			child = Genome.crossover(p2, p1)
+			child = p2.crossover(p1)
 
-		child.mutation()
+		if (np.random.random() < WEIGHT_MUTATION_RATE):
+			child.mutation()
 
 		if (np.random.random() < CONNECTION_MUTATION_RATE):
 			child.addConnectionMutation()
@@ -638,20 +620,6 @@ def Speciate(Genomes = Genomes, Species = Species, POPULATION = POPULATION):
 		nextGenGenomes.append(child)
 
 	return nextGenGenomes
-
-def breed(Snakes):
-	newSnakes = []
-	newPop = math.floor(POPULATION*0.95)
-	randoms = POPULATION - newPop
-	for _ in range(newPop):
-		snake = Selection(Snakes)
-		newSnake = Snake()
-		newSnake.Brain = snake.Brain.copy()
-		newSnake.Brain.mutate(newSnake.mutate)
-		newSnakes.append(newSnake)
-	for _ in range(randoms):
-		newSnakes.append(Snake())
-	return newSnakes
 
 
 def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
@@ -718,6 +686,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 		for snake in Snakes:
 			if snake.terminate(LOG):
 				Snakes.remove(snake)
+				snake.Brain.fitness = snake.fitness
 				deadSnakes.append(snake)
 				continue		
 			choice = snake.think(food)
@@ -746,16 +715,12 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	if LOG == 1 or LOG == 2:
 		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best: " + str(Score))
 
-	Sum = sum(snake.fitness for snake in deadSnakes)
-	for snake in deadSnakes:
-		snake.fitness = snake.fitness/Sum
-
-	return SCORE, deadSnakes
+	return SCORE
 
 
 ####################### Event Loop #############################
 
-newSnakes = []
+POP = Population()
 
 while True:
 	for event in pygame.event.get():
@@ -765,6 +730,7 @@ while True:
 			if event.key == pygame.K_ESCAPE:
 				sys.exit()
 	GEN += 1
-	Snakes = populate(newSnakes, POPULATION)
-	SCORE, deadSnakes = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
-	newSnakes = breed(deadSnakes)
+	Snakes = POP.populate(Genomes)
+	SCORE = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
+	Genomes = Speciate(Genomes)
+	print(len(SpeciesList))
