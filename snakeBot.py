@@ -27,8 +27,8 @@ STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
 MUTATION_RATE = 0.1
 WEIGHT_MUTATION_RATE = 0.8
-CONNECTION_MUTATION_RATE = 1
-NODE_MUTATION_RATE = 0.2
+CONNECTION_MUTATION_RATE = 0.1
+NODE_MUTATION_RATE = 0.1
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -40,7 +40,7 @@ FOOD_COLOR = "Random"
 # FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
 FOOD = False
-CompatibilityDistanceThreshold = 1
+CompatibilityDistanceThreshold = 3
 C1 = 1
 C2 = 1
 C3 = 0.4
@@ -77,7 +77,7 @@ class Snake:
 	def think(self, food):
 		inputs = self.look(food)
 		result = self.Brain.feedForward(inputs)
-		print(result)
+		# print(result)
 		pred = result.index(max(result))
 		return pred + 1
 
@@ -206,7 +206,7 @@ class Snake:
 
 	def calcFitness(self):
 		if(self.SCORE < 10):
-			self.fitness = math.floor(self.lifetime * self.lifetime) * pow(2,self.SCORE);
+			self.fitness = math.floor(self.lifetime * self.lifetime) * pow(2,self.SCORE)
 		else:
 			self.fitness = math.floor(self.lifetime * lifetime)
 			self.fitness *= pow(2,10)
@@ -305,14 +305,15 @@ class Genome:
 
 
 	def feedForward(self, inputs):
+
 		for i in range(len(inputs)):
 			self.network[i].outputValue = inputs[i]
 
 		self.nodes[self.biasNode].outputValue = 1
 
+
 		for node in self.network:
 			node.engage()
-			print(node.TYPE, node.outputValue)
 
 		outputs = []
 		for node in self.nodes:
@@ -321,6 +322,9 @@ class Genome:
 
 		for node in self.nodes:
 			node.inputSum = 0
+			for connection in node.outputConnections:
+				connection.outNode.inputSum = 0
+				connection.outNode.outputValue = 0
 
 		return outputs
 
@@ -437,11 +441,8 @@ class NodeGene:
 		if self.TYPE != "Input":
 			self.outputValue = sigmoid(self.inputSum)
 		for connection in self.outputConnections:
-			print(connection.inNode.ID, connection.outNode.ID)
-			print(connection.inNode.outputValue)
 			if connection.expressed:
-				connection.outNode.inputSum += (self.outputValue * connection.weight)
-			print(connection.outNode.inputSum)
+				connection.outNode.inputSum += self.outputValue * connection.weight
 
 
 	def copy(self):
@@ -525,6 +526,10 @@ class Population:
 	def initialGenomes(self):
 		for i in range(self.POPULATION):
 			genome = Genome(24,4)
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
 			genome.addConnectionMutation()
 			Genomes.append(genome)
 
@@ -691,6 +696,9 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 					else:
 						FOOD_COLOR = RED
 						print("Red Food")
+				elif event.key == pygame.K_1:
+					print("Speed set to 1")
+					SPEED = 1
 
 		if BEST_ONLY:
 			best = max(snake.Brain.fitness for snake in Snakes)
@@ -732,7 +740,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	Fitness = max(snake.Brain.fitness for snake in deadSnakes)
 	SCORE = max(Score, SCORE)
 	if LOG == 1 or LOG == 2:
-		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best Score: " + str(Score) + ", Fitness: " + str(Fitness) + " --------------------------------")
+		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best Score: " + str(Score) + ", Fitness: " + str(Fitness))
 
 	return SCORE
 
@@ -749,10 +757,6 @@ while True:
 			if event.key == pygame.K_ESCAPE:
 				sys.exit()
 	GEN += 1
-	for genome in Genomes:
-		print("GENOME: ")
-		for connection in genome.connections:
-			print(connection.inNode.ID, connection.outNode.ID)
 	Snakes = POP.populate(Genomes)
 	SCORE = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
 	Genomes = Speciate(Genomes)
