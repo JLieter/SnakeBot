@@ -25,7 +25,7 @@ SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
-MUTATION_RATE = 0.1
+MUTATION_RATE = 0.01
 WEIGHT_MUTATION_RATE = 0.8
 CONNECTION_MUTATION_RATE = 0.1
 NODE_MUTATION_RATE = 0.1
@@ -40,7 +40,7 @@ FOOD_COLOR = "Random"
 # FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
 FOOD = False
-CompatibilityDistanceThreshold = 3
+CompatibilityDistanceThreshold = 1
 C1 = 1
 C2 = 1
 C3 = 0.4
@@ -531,6 +531,27 @@ class Population:
 			genome.addConnectionMutation()
 			genome.addConnectionMutation()
 			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
 			Genomes.append(genome)
 
 	def populate(self, Genomes):
@@ -697,8 +718,29 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 						FOOD_COLOR = RED
 						print("Red Food")
 				elif event.key == pygame.K_1:
-					print("Speed set to 1")
-					SPEED = 1
+					if SPEED != 1:
+						print("Speed set to 1")
+						SPEED = 1
+				elif event.key == pygame.K_2:
+					if SPEED != 2:
+						print("Speed set to 2")
+						SPEED = 2
+				elif event.key == pygame.K_3:
+					if SPEED != 3:
+						print("Speed set to 3")
+						SPEED = 3
+				elif event.key == pygame.K_1:
+					if SPEED != 1:
+						print("Speed set to 1")
+						SPEED = 1
+				elif event.key == pygame.K_1:
+					if SPEED != 1:
+						print("Speed set to 1")
+						SPEED = 1
+				elif event.key == pygame.K_1:
+					if SPEED != 1:
+						print("Speed set to 1")
+						SPEED = 1
 
 		if BEST_ONLY:
 			best = max(snake.Brain.fitness for snake in Snakes)
