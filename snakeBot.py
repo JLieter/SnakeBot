@@ -619,7 +619,10 @@ def Speciate(Genomes, SpeciesList = SpeciesList, POPULATION = POPULATION):
 
 	#Select New Species mascot for each species
 	for species in SpeciesList:
-		species.mascot =  species.members[randint(0, len(species.members)-1)]
+		bestG = max(genome.fitness for genome in species.members)
+		for genome in species.members:
+			if genome.fitness == bestG:
+				species.mascot = genome
 		species.members = []
 		species.members.append(species.mascot)
 		species.memFitness.clear()
@@ -729,18 +732,18 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 					if SPEED != 3:
 						print("Speed set to 3")
 						SPEED = 3
-				elif event.key == pygame.K_1:
-					if SPEED != 1:
-						print("Speed set to 1")
-						SPEED = 1
-				elif event.key == pygame.K_1:
-					if SPEED != 1:
-						print("Speed set to 1")
-						SPEED = 1
-				elif event.key == pygame.K_1:
-					if SPEED != 1:
-						print("Speed set to 1")
-						SPEED = 1
+				elif event.key == pygame.K_4:
+					if SPEED != 4:
+						print("Speed set to 4")
+						SPEED = 4
+				elif event.key == pygame.K_5:
+					if SPEED != 5:
+						print("Speed set to 5")
+						SPEED = 5
+				elif event.key == pygame.K_9:
+					if SPEED != 9:
+						print("Speed set to 9")
+						SPEED = 9
 
 		if BEST_ONLY:
 			best = max(snake.Brain.fitness for snake in Snakes)
@@ -802,3 +805,5 @@ while True:
 	Snakes = POP.populate(Genomes)
 	SCORE = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
 	Genomes = Speciate(Genomes)
+
+
