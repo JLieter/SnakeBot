@@ -25,10 +25,10 @@ SPEED = 1
 SCORE = 0
 STARVATION_RATE = 200
 MAX_STARVATION_RATE = 500
-MUTATION_RATE = 0.01
+MUTATION_RATE = 0.1
 WEIGHT_MUTATION_RATE = 0.8
-CONNECTION_MUTATION_RATE = 0.1
-NODE_MUTATION_RATE = 0.1
+CONNECTION_MUTATION_RATE = 0.01
+NODE_MUTATION_RATE = 0.01
 BLOCK_SIZE = 20
 SCREEN_SIZE = 800
 GEN = 0
@@ -40,7 +40,7 @@ FOOD_COLOR = "Random"
 # FOOD_COLOR = RED
 SCREEN_COLOR = BLACK
 FOOD = False
-CompatibilityDistanceThreshold = 1
+CompatibilityDistanceThreshold = 3
 C1 = 1
 C2 = 1
 C3 = 0.4
@@ -73,18 +73,20 @@ class Snake:
 		self.hunger = STARVATION_RATE
 		self.Brain = Brain
 		self.Brain.generateNetwork()
+		self.food_distance = 0
 			
 	def think(self, food):
 		inputs = self.look(food)
+		print(inputs)
 		result = self.Brain.feedForward(inputs)
-		# print(result)
+		print(result)
 		pred = result.index(max(result))
 		return pred + 1
 
-	def update(self):
+	def update(self,food):
 		self.hunger -= 1
 		self.lifetime += 1
-		self.calcFitness()
+		self.calcFitness(food)
 		self.tail.insert(0, (self.x, self.y))
 		if self.tail_size != len(self.tail):
 			self.tail.pop()
@@ -204,13 +206,16 @@ class Snake:
 			stats[1] = 1 / distance
 		return stats
 
-	def calcFitness(self):
-		if(self.SCORE < 10):
-			self.fitness = math.floor(self.lifetime * self.lifetime) * pow(2,self.SCORE)
+	def calcFitness(self, food):
+		self.fitness += 2
+		p1 = [self.x, self.y]
+		p2 = [food.x, food.y]
+		distance = math.sqrt( ((p1[0]-p2[0])**2)+((p1[1]-p2[1])**2) )
+		if distance > self.food_distance:
+			self.fitness -= 1.5
 		else:
-			self.fitness = math.floor(self.lifetime * lifetime)
-			self.fitness *= pow(2,10)
-			self.fitness *= (score-9)
+			self.fitness += 1
+		self.food_distance = distance
 
 
 ######################## Food Class ############################
@@ -466,6 +471,7 @@ class Species():
 		self.adjustedFitness = 0
 
 	def calcFitness(self):
+		self.adjustedFitness = 0
 		for genome in self.members:
 			genome.adjustedFitness = genome.fitness / len(self.members)
 			self.memFitness[genome] = genome.adjustedFitness
@@ -526,6 +532,32 @@ class Population:
 	def initialGenomes(self):
 		for i in range(self.POPULATION):
 			genome = Genome(24,4)
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
+			genome.addConnectionMutation()
 			genome.addConnectionMutation()
 			genome.addConnectionMutation()
 			genome.addConnectionMutation()
@@ -613,8 +645,24 @@ def Selection(Genomes):
 
 	return Genomes[0]
 
+def CompatMod(CompatibilityDistanceThreshold = CompatibilityDistanceThreshold, SpeciesList = SpeciesList, POPULATION = POPULATION):
+	global GEN
+
+	targetSpeciesNum = 10
+	speciesSize = len(SpeciesList)
+	if GEN > 25:
+		if (targetSpeciesNum > speciesSize):
+			CompatibilityDistanceThreshold -= 0.1
+		elif (targetSpeciesNum < speciesSize):
+			CompatibilityDistanceThreshold += 0.1
+
+	return CompatibilityDistanceThreshold
+
+
 
 def Speciate(Genomes, SpeciesList = SpeciesList, POPULATION = POPULATION):
+	global CompatibilityDistanceThreshold
+
 	nextGenGenomes = []
 
 	#Select New Species mascot for each species
@@ -637,6 +685,9 @@ def Speciate(Genomes, SpeciesList = SpeciesList, POPULATION = POPULATION):
 				break
 		if not foundSpecies:
 			SpeciesList.append(Species(genome))
+
+	#Adjust Compatibility Distance if there are too many or too few species
+	CompatibilityDistanceThreshold = CompatMod(CompatibilityDistanceThreshold)
 
 	#Calculate the fitness of each Species and find best genome per species
 	for species in SpeciesList:
@@ -675,6 +726,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	global BEST_ONLY
 	global COLORED_FIT
 	global FOOD_COLOR
+	PAUSED = False
 	deadSnakes = []
 	Score = 0
 	food = Food()
@@ -697,6 +749,13 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 				elif event.key == pygame.K_LEFT:
 					if SPEED != 1:
 						SPEED -= 1
+				elif event.key == pygame.K_SPACE:
+					if not PAUSED:
+						print("PAUSED")
+						PAUSED = True
+					elif PAUSED:
+						print("UNPAUSE")
+						PAUSED = False
 				elif event.key == pygame.K_b:
 					if (not BEST_ONLY):
 						BEST_ONLY = True
@@ -744,7 +803,8 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 					if SPEED != 9:
 						print("Speed set to 9")
 						SPEED = 9
-
+		if PAUSED:
+			continue
 		if BEST_ONLY:
 			best = max(snake.Brain.fitness for snake in Snakes)
 			for snake in Snakes:
@@ -754,7 +814,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 		if DISPLAY:
 			clock.tick(15*SPEED)
 			gameDisplay.fill(SCREEN_COLOR)
-		pygame.display.set_caption("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
+		pygame.display.set_caption("SNAKEBOT  |  High Score: " + str(SCORE) + "  |  Generation: " + str(GEN) + "  |  Score: " + str(Score))
 		for snake in Snakes:
 			if snake.terminate(LOG):
 				Snakes.remove(snake)
@@ -764,7 +824,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 			choice = snake.think(food)
 			snake.move_decision(choice)
 
-			snake.update()
+			snake.update(food)
 			if snake.DISPLAY and DISPLAY:
 				snake.show()
 			if snake.eats(food.x, food.y):
@@ -785,7 +845,7 @@ def machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes):
 	Fitness = max(snake.Brain.fitness for snake in deadSnakes)
 	SCORE = max(Score, SCORE)
 	if LOG == 1 or LOG == 2:
-		print("SNAKEBOT  |  Best Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best Score: " + str(Score) + ", Fitness: " + str(Fitness))
+		print("SNAKEBOT  |  High Score: " + str(SCORE) + "  |  Generation " + str(GEN) + " Best Score: " + str(Score) + ", Fitness: " + str(Fitness))
 
 	return SCORE
 
@@ -805,5 +865,6 @@ while True:
 	Snakes = POP.populate(Genomes)
 	SCORE = machine_play(SCREEN_COLOR, SCORE, DISPLAY, GEN, LOG, Snakes)
 	Genomes = Speciate(Genomes)
-
-
+	print("No. of Species: " + str(len(SpeciesList)))
+	for species in SpeciesList:
+		print(species.adjustedFitness)
